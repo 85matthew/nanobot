@@ -1,0 +1,70 @@
+factory:
+  name: nanobot
+  spec_version: '1.0'
+  constitution_version: '2.3'
+project:
+  type: other
+  language: python
+  framework: null
+  complexity: L
+agents:
+- role: planner
+  model: gemini/gemini-2.5-pro
+  temperature: 0.3
+  max_tokens: 16384
+  tools:
+  - file_read
+  - shell_execute
+  system_prompt: config/constitution.md + config/roles/planner.md
+- role: coder
+  model: gemini/gemini-2.5-flash
+  temperature: 0.1
+  max_tokens: 8192
+  tools:
+  - file_read
+  - file_write
+  - shell_execute
+  - test_runner
+  - linter
+  system_prompt: config/constitution.md + config/roles/coder.md
+- role: reviewer
+  model: gemini/gemini-2.5-flash
+  temperature: 0.2
+  max_tokens: 8192
+  tools:
+  - file_read
+  - shell_execute
+  - security_scanner
+  system_prompt: config/constitution.md + config/roles/reviewer.md
+- role: red_team
+  model: gemini/gemini-2.5-flash
+  temperature: 0.4
+  max_tokens: 8192
+  tools:
+  - file_read
+  - shell_execute
+  - security_scanner
+  system_prompt: config/constitution.md + config/roles/red_team.md
+workflows:
+- workflow: tdd_coding_loop
+  framework: langgraph
+  config_path: config/workflows/tdd_coding_loop.yml
+  enabled: true
+- workflow: pr_review
+  framework: langgraph
+  config_path: config/workflows/pr_review.yml
+  enabled: true
+- workflow: incident_response
+  framework: langgraph
+  config_path: config/workflows/incident_response.yml
+  enabled: true
+model_cascade:
+  budget: gemini/gemini-2.5-flash-lite
+  standard: gemini/gemini-2.5-flash
+  premium: gemini/gemini-2.5-pro
+error_budget:
+  period: weekly
+  threshold: 0.95
+cost_controls:
+  daily_token_budget: 5000000
+  per_task_token_limit: 500000

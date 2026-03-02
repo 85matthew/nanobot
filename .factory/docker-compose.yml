@@ -1,0 +1,38 @@
+version: '3.8'
+services:
+  orchestrator:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    container_name: fba-nanobot-orchestrator
+    volumes:
+    - ./config:/app/config:ro
+    - ./workspace:/app/workspace
+    environment:
+      FACTORY_NAME: nanobot
+      FACTORY_CONFIG: /app/config/factory.yml
+      LITELLM_PROXY_URL: ${LITELLM_PROXY_URL:-http://host.docker.internal:4000}
+      LOG_LEVEL: INFO
+    ports:
+    - 8080:8080
+    restart: unless-stopped
+    depends_on:
+    - telemetry
+  telemetry:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    container_name: fba-nanobot-telemetry
+    command: python -m telemetry.collector
+    volumes:
+    - ./config:/app/config:ro
+    - ./telemetry/data:/app/telemetry/data
+    environment:
+      FACTORY_NAME: nanobot
+      METRICS_INTERVAL: '300'
+    ports:
+    - 8501:8501
+    restart: unless-stopped
+volumes:
+  workspace: {}
+  telemetry-data: {}

@@ -1,0 +1,39 @@
+# Factory PR Review Workflow — Template v1
+# Source: FBA templates/github-actions/pr-review.yml
+# Constitution: Section 1.14 (Infrastructure-as-Code Verification)
+#
+# Prerequisites (run scripts/setup-github.sh or do manually):
+#   1. Create GitHub Environment: automated-test
+#   2. Add Environment Secret: GEMINI_API_KEY or ANTHROPIC_API_KEY
+#   3. Optionally add Environment Variable: REVIEWER_MODEL
+
+name: Automated PR Review
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    environment: automated-test
+    permissions:
+      contents: read          # Required: checkout the repo
+      pull-requests: write    # Required: post review comments
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install litellm==1.81.16 requests==2.32.5 pyyaml==6.0.3
+      - name: Run reviewer
+        timeout-minutes: 5    # Prevent hung LLM calls
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REVIEWER_MODEL: ${{ vars.REVIEWER_MODEL || '' }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || '' }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || '' }}
+        run: |
+          python .github/scripts/pr_reviewer.py \
+            --repo ${{ github.repository }} \
+            --pr-number ${{ github.event.pull_request.number }}
