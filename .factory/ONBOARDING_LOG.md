@@ -30,31 +30,75 @@ What was missing (and why this onboarding process exists):
 - No roadmap or backlog
 - No understanding of the project business purpose or architectural constraints
 
-### Step 2: CDO/CTO Analysis (IN PROGRESS)
+### Step 2: CDO/CTO Analysis (DONE)
 
-The planner (acting as CDO/CTO) analyzes the existing codebase to understand:
-- What is this project core value proposition?
-- What are its architectural patterns and constraints?
-- What business metrics define success?
-- What governance rules should be project-specific vs inherited?
+The planner (acting as CDO/CTO) analyzed the codebase and produced:
 
-This analysis produces:
-- BYLAWS.md - project-specific strategic rules
-- Business KPIs - what telemetry should track
-- CLAUDE.md - tactical rules for coders
-- Questions for the user - things the CDO cannot determine from code alone
+Codebase analysis covered:
+- nanobot/ directory structure (14 subsystems)
+- providers/registry.py — ProviderSpec pattern, 16 providers, find_by_model/find_gateway helpers
+- agent/loop.py — core LLM-tool execution cycle (22KB, largest file)
+- channels/ — 12 channel implementations with base class pattern
+- config/schema.py — Pydantic v2 config models
+- pyproject.toml — dependencies, build system, test config
+- tests/ — 16 existing test files covering channels, memory, tools, CLI, cron
+- Upstream issues — reviewed 20 most recent open issues on HKUDS/nanobot
 
-### Step 3: Infrastructure Setup (PENDING)
-- Create .github/workpackages/ directory
-- Create PR review workflow (adapted from FBA template)
-- Create ROADMAP.md
-- Create BACKLOG.md
+Key findings:
+- Architecture is plugin-based (registry pattern for providers, tools; base class for channels)
+- Bus-based message routing decouples channels from agent loop
+- Skills are markdown files loaded at runtime
+- Core line count ~4,000 (upstream identity constraint, not enforced in our sandbox)
+- Test suite has ~106 tests but sparse coverage of core agent loop
 
-### Step 4: First Work Package (PENDING)
-- Write and dispatch a bounded WP to validate the pipeline works
-- Coder executes against nanobot codebase
-- Reviewer checks the PR
-- Validate end-to-end
+Questions asked to user:
+1. Contributing upstream or standalone? — Standalone throwaway sandbox
+2. Honor 4,000-line budget? — No, do what we want
+3. First improvement priority? — Take real issues from upstream repo
+
+Artifacts produced:
+- .factory/config/BYLAWS.md — project-specific strategic governance
+- CLAUDE.md — tactical coder rules (commands, architecture map, patterns, pitfalls)
+
+### Step 3: Infrastructure Setup (DONE)
+
+Created:
+- .github/workpackages/ directory with WP-001
+- CLAUDE.md at repo root
+- .factory/config/BYLAWS.md
+
+Not yet created (not needed for manual dispatch):
+- PR review workflow (would need to be adapted from FBA template)
+- ROADMAP.md (not needed for throwaway sandbox)
+- BACKLOG.md (not needed for throwaway sandbox)
+
+### Step 4: First Work Package (READY FOR DISPATCH)
+
+WP-001: Fix Cron Notification Feedback Loop
+- Based on upstream issue HKUDS/nanobot#1441
+- Bug: cron notifications re-enter agent loop as user messages, causing infinite recursion
+- Bounded to agent/loop.py, cron/service.py, bus layer
+- Clear acceptance criteria and test strategy
+- Manual dispatch required (FBA automation is wired to FBA repo, not nanobot)
+
+Dispatch method: Run Claude Code manually pointed at 85matthew/nanobot, provide WP-001
+as the task description along with CLAUDE.md and BYLAWS.md context.
+
+## Key Insight: Type A vs Type B Work
+
+During this onboarding, we identified two fundamentally different kinds of factory work:
+
+Type A — Code improvement (fix bugs, add tests, refactor). The coder reads code and
+writes code. Business context is minimal. This is what WP-001 tests.
+
+Type B — Business transformation (AI-enable a dental office, add intelligent agents to
+a real estate CRM). The challenge is understanding the business domain, identifying
+automation opportunities, designing agent workflows. This requires the CDO/CTO role
+and tests whether BYLAWS can encode business rules that guide technical implementation.
+
+Nanobot dogfooding tests Type A. A future project (possibly a fresh FastAPI app with
+a business domain) will test Type B. The BYLAWS/CLAUDE.md/Constitution three-layer
+model needs to work for both.
 
 ## Governance Layer Model
 
@@ -111,3 +155,4 @@ Three-layer governance, each serving a different audience and purpose:
 - Should the CDO role be a separate LLM session or the same as the planner?
 - How much of the CLAUDE.md can be auto-generated from codebase analysis?
 - When a new Roadmap milestone is added, what is the formal process for updating BYLAWS?
+- What project should we use for Type B (business transformation) testing?
