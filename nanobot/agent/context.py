@@ -111,12 +111,45 @@ Reply directly with text for conversations. Only use the 'message' tool to send 
         channel: str | None = None,
         chat_id: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Build the complete message list for an LLM call."""
+        """Build the complete message list for an LLM call.
+
+        The runtime context and user content are merged into a single role="user"
+        message to comply with the chat completions spec, which forbids consecutive
+        messages with the same role (strict providers such as Minimax and DashScope
+        reject such payloads outright).
+        """
+        runtime_context = self._build_runtime_context(channel, chat_id)
+        user_content = self._build_user_content(current_message, media)
+
+        if isinstance(user_content, list):
+            # Multimodal: prepend runtime context as a text block before image/text blocks.
+            merged_content: str | list[dict[str, Any]] = [
+                {"type": "text", "text": runtime_context}
+            ] + user_content
+        else:
+            # Text-only: separate sections with a delimiter for readability.
+            merged_content = f"{runtime_context}\n\n---\n\n{user_content}"
+
+        # If history ends with a user message, absorb it into our new message so that
+        # no two consecutive messages share the same role. This handles interrupted sessions
+        # where no assistant reply was recorded.
+        effective_history = list(history)
+        if effective_history and effective_history[-1]["role"] == "user":
+            prior_content = effective_history.pop()["content"]
+            if isinstance(merged_content, list):
+                prefix: str | list[dict[str, Any]] = (
+                    prior_content
+                    if isinstance(prior_content, list)
+                    else [{"type": "text", "text": str(prior_content)}]
+                )
+                merged_content = prefix + merged_content
+            else:
+                merged_content = f"{prior_content}\n\n---\n\n{merged_content}"
+
         return [
             {"role": "system", "content": self.build_system_prompt(skill_names)},
-            *history,
-            {"role": "user", "content": self._build_runtime_context(channel, chat_id)},
-            {"role": "user", "content": self._build_user_content(current_message, media)},
+            *effective_history,
+            {"role": "user", "content": merged_content},
         ]
 
     def _build_user_content(self, text: str, media: list[str] | None) -> str | list[dict[str, Any]]:
