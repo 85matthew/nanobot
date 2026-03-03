@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import datetime as datetime_module
 from datetime import datetime as real_datetime
 from pathlib import Path
-import datetime as datetime_module
 
 from nanobot.agent.context import ContextBuilder
 
@@ -39,8 +39,16 @@ def test_system_prompt_stays_stable_when_clock_changes(tmp_path, monkeypatch) ->
     assert prompt1 == prompt2
 
 
-def test_runtime_context_is_separate_untrusted_user_message(tmp_path) -> None:
-    """Runtime metadata should be a separate user message before the actual user message."""
+def test_runtime_context_in_user_message_not_system_prompt(tmp_path) -> None:
+    """Runtime metadata must appear in the user message, not the system prompt.
+
+    The runtime context (current time, channel, chat ID) is untrusted input that
+    must travel in the user-role message rather than the system prompt so that
+    prompt caching for the stable system prompt is not invalidated on every request.
+    Both the runtime context and the actual user content are merged into a single
+    user message to comply with the chat-completions spec (no consecutive same-role
+    messages).
+    """
     workspace = _make_workspace(tmp_path)
     builder = ContextBuilder(workspace)
 
@@ -53,14 +61,13 @@ def test_runtime_context_is_separate_untrusted_user_message(tmp_path) -> None:
 
     assert messages[0]["role"] == "system"
     assert "## Current Session" not in messages[0]["content"]
-
-    assert messages[-2]["role"] == "user"
-    runtime_content = messages[-2]["content"]
-    assert isinstance(runtime_content, str)
-    assert ContextBuilder._RUNTIME_CONTEXT_TAG in runtime_content
-    assert "Current Time:" in runtime_content
-    assert "Channel: cli" in runtime_content
-    assert "Chat ID: direct" in runtime_content
+    assert ContextBuilder._RUNTIME_CONTEXT_TAG not in messages[0]["content"]
 
     assert messages[-1]["role"] == "user"
-    assert messages[-1]["content"] == "Return exactly: OK"
+    user_content = messages[-1]["content"]
+    assert isinstance(user_content, str)
+    assert ContextBuilder._RUNTIME_CONTEXT_TAG in user_content
+    assert "Current Time:" in user_content
+    assert "Channel: cli" in user_content
+    assert "Chat ID: direct" in user_content
+    assert "Return exactly: OK" in user_content
